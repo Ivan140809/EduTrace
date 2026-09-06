@@ -115,7 +115,7 @@ Esta debilidad es especialmente crítica en los cursos introductorios de program
 \begin{table}[ht]
 	\centering
 	\caption{¿Qué fue lo que más se te dificultó al realizar ejercicios de programación?}
-	\label{tab:feedback}
+	\label{tab:dificultades}
 	\begin{tabular}{lrr}
 		\hline
 		\textbf{Dificultad} & \textbf{n} & \textbf{\%} \\
@@ -152,7 +152,7 @@ En esta tabla se evaluó la percepción de los estudiantes sobre la cantidad de 
 \begin{table}[ht]
 	\centering
 	\caption{¿A qué recurrías principalmente cuando necesitabas ayuda?}
-	\label{tad:feedback}
+	\label{tab:fuentes}
 	\begin{tabular}{lrr}
 		\hline
 		\textbf{Fuente} & \textbf{n} & \textbf{\%} \\
@@ -238,6 +238,193 @@ En consecuencia, se establece que el problema radica en la ausencia de una forma
 
 Después del análisis realizado se plantea la siguiente pregunta problema como guía para avanzar a la próxima fase: ¿Cómo, a través de las TI, sostener una retroalimentación formativa efectiva en cursos introductorios de programación, que preserve al docente como decisor apoyando su labor, sin limitarse a automatizar la calificación?
 
+
+
+\section{Análisis}
+
+El presente análisis complementa el diagnóstico multidimensional expuesto previamente, presentando el diseño de la solución, la especificación de requisitos y el modelo de negocio desarrollados para EduTrace.
+
+\subsection{Metodología de Diseño: Design Thinking}
+El desarrollo de la solución se abordó mediante la metodología de Design Thinking, recorriendo de manera iterativa las etapas de empatizar, definir, idear, prototipar, testear e implementar. A continuación se describen las actividades realizadas en cada una de ellas:
+
+\begin{itemize}
+	\item \textbf{Empatizar:} Se llevaron a cabo conversaciones con varios docentes de la asignatura de Introducción a la Programación. El jefe de sección de dicha materia señaló que la carga de talleres por calificar es constante y que sostener una retroalimentación profunda resulta muy difícil, en la medida en que cada estudiante presenta particularidades propias que exigen distintos niveles de atención y acompañamiento.
+	\item \textbf{Definir:} A partir del trabajo de campo se confirmó la debilidad, ya expuesta en el análisis multidimensional, para sostener una retroalimentación formativa efectiva en los cursos introductorios de programación, de forma que se preserve al docente como decisor pedagógico y no se limite el proceso a la automatización de la calificación. Esta definición del problema es la que orienta el resto de las decisiones de diseño descritas.
+	\item \textbf{Idear:} Durante la fase de ideación se generaron distintas alternativas de funcionalidades orientadas a resolver el problema identificado, entre las cuales se destacan:
+	\begin{itemize}
+		\item Alertas inteligentes que notifiquen al docente sobre situaciones que requieren su atención.
+		\item Rúbricas adaptativas que permitan ajustar los criterios de evaluación a cada entrega.
+		\item Analítica de progreso que visibilice la evolución del estudiante a lo largo del curso.
+		\item Pistas escalonadas que orienten al estudiante sin revelar la solución completa.
+		\item Comentarios guiados que estructuren la retroalimentación de forma comprensible.
+		\item Historial de intentos que permita reconstruir el proceso seguido por el estudiante.
+		\item Ejemplos y casos de referencia asociados a los errores más frecuentes.
+		\item Integración con Git para incorporar la herramienta al flujo de trabajo habitual del curso.
+	\end{itemize}
+	\item \textbf{Prototipar:} Con base en las ideas anteriores se desarrolló el prototipo de EduTrace, una plataforma que acompaña al docente en la revisión de código, identifica las dificultades frecuentes del estudiante y sugiere apoyo formativo, manteniendo en todo momento al docente como decisor final del proceso.
+	\item \textbf{Testear:} El prototipo se contrastó con la evidencia recogida entre más de 50 estudiantes de Introducción a la Programación, quienes presentaban dificultades recurrentes con la materia: una parte importante no sabía cómo traducir sus ideas a código y requería acompañamiento continuo. En esta misma fase, el profesor Efraín señaló que el interés de los docentes radica en transmitir conocimiento y en que los estudiantes logren absorberlo efectivamente, lo cual reforzó la necesidad de que la herramienta apoye dicho propósito en lugar de sustituirlo.
+	\item \textbf{Implementar:} EduTrace se concibe para integrarse al flujo habitual del curso, apoyando al docente en la retroalimentación formativa sin reemplazar su criterio pedagógico en ningún momento del proceso.
+\end{itemize}
+
+\subsection{Actores del Sistema}
+La solución involucra cuatro actores, clasificados en primarios y secundarios según su nivel de participación directa en el proceso de retroalimentación.
+
+\begin{table}[ht]
+	\centering
+	\caption{Caracterización de los actores del sistema}
+	\label{tab:actores}
+	\begin{tabular}{llp{3.7cm}}
+		\hline
+		\textbf{Actor} & \textbf{Tipo} & \textbf{Rol dentro del sistema} \\
+		\hline
+		Docente & Primario & Decisor pedagógico. Configura los criterios de evaluación y revisa la retroalimentación antes de su entrega al estudiante. \\
+		Estudiante & Primario & Participante. Entrega su código y recibe la retroalimentación formativa generada por el sistema. \\
+		Institución & Secundario & Responsable institucional. Define el contexto y asegura las condiciones de implementación. \\
+		Monitor/Compañero & Secundario & Apoyo complementario durante el proceso de aprendizaje. \\
+		\hline
+	\end{tabular}
+\end{table}
+
+\subsection{Diagramas de Empatía}
+Con el propósito de comprender en mayor profundidad las necesidades de los dos actores primarios, se construyeron los siguientes diagramas de empatía a partir del trabajo de campo realizado:
+
+\subsubsection{Diagrama de empatía del docente}
+El docente manifiesta sentirse cansado por la gran cantidad de actividades que debe calificar y expresa el deseo de enseñar de una manera más cercana y efectiva, ofreciendo comentarios más específicos y útiles; asimismo, prefiere una solución flexible, que se adapte a las necesidades de cada estudiante en lugar de una herramienta rígida. Entre lo que percibe del entorno, el docente escucha quejas de los estudiantes sobre la complejidad de la materia, solicitudes de una retroalimentación más clara y oportuna, comentarios sobre la falta de acompañamiento durante el aprendizaje y preocupación por el alto índice de reprobación; asimismo, observa estudiantes que piden orientación para corregir sus errores, colegas que emplean metodologías de enseñanza distintas y grupos de clase con niveles y necesidades diversas. Frente a ello, el docente propone más actividades prácticas, aplica métodos de enseñanza diferenciados, ofrece retroalimentación mediante comentarios y consejos concretos, y prioriza dicha retroalimentación durante el proceso de aprendizaje. Sus principales dolores son la sobrecarga de trabajo de calificación, la dificultad para retroalimentar adecuadamente a todos los estudiantes, el riesgo de que aumente el índice de reprobación y la dificultad para reflejar la retroalimentación en las calificaciones; en contraste, valora contar con retroalimentación guiada, clara y útil, recibir consejos personalizados al momento de calificar, mejorar la enseñanza formativa para cada estudiante y reducir su carga de trabajo sin perder la calidad del acompañamiento.
+
+\subsubsection{Diagrama de empatía del estudiante}
+El estudiante, por su parte, con frecuencia no sabe qué está mal en su código ni cómo identificar el error, siente ansiedad ante una calificación baja porque no sabe cómo mejorar, y pierde confianza cuando la retroalimentación recibida no está adaptada a su nivel. En cuanto a lo que percibe de su entorno, escucha que su calificación es baja o que su código es incorrecto sin una explicación clara, recibe comentarios técnicos que no siempre comprende y recomendaciones generales que no le indican cómo corregir el error; observa, además, que la inteligencia artificial se ha convertido en la primera opción para resolver ejercicios de programación, que las preguntas dirigidas a estas herramientas suelen carecer de contexto suficiente, que la retroalimentación del docente resulta en ocasiones ambigua o demasiado general, y que algunos compañeros avanzan más rápido en los temas. Ante esta situación, el estudiante recurre a la inteligencia artificial antes que al profesor, copia soluciones generadas por IA sin comprenderlas a profundidad, prueba distintas soluciones hasta encontrar una que funcione y dedica demasiado tiempo a depurar su código sin una guía clara. Entre sus dolores se encuentran recibir indicaciones sobre lo que está mal sin saber cuál es el siguiente paso concreto, obtener retroalimentación tardía o inexistente en algunos trabajos, recibir explicaciones en un lenguaje que no comprende y desarrollar dependencia de las herramientas de inteligencia artificial; sus ganancias, en cambio, consisten en saber cuál es el siguiente paso concreto para avanzar, recibir retroalimentación inmediata y adaptada a su nivel en el momento de intentarlo, comprender sus errores y aprender a corregirlos por sí mismo, y desarrollar autonomía frente a las herramientas de inteligencia artificial.
+
+\subsection{Análisis Comparativo de Soluciones Existentes}
+Previamente a la definición de la solución propuesta, se evaluaron cuatro enfoques existentes en el mercado a partir de cinco criterios: la corrección funcional del código, el acompañamiento del proceso y de la etapa “¿Qué sigue?”, la preservación del docente como decisor, la escalabilidad y oportunidad de la respuesta, y el tratamiento de los datos dentro de un marco legal adecuado. La Tabla \ref{tab:comparativo} resume los resultados de dicho análisis.
+
+\begin{table}[ht]
+	\centering
+	\caption{Análisis comparativo de soluciones existentes}
+	\label{tab:comparativo}
+	\footnotesize % Reduce ligeramente el tamaño de la fuente para ajustar la tabla a la columna
+	\setlength{\tabcolsep}{2pt} % Ajusta el espaciado horizontal entre columnas
+	\begin{tabular}{lp{0.9cm}p{0.9cm}p{1.1cm}p{1.15cm}p{0.9cm}}
+		\hline
+		\textbf{Enfoque} & \textbf{Corr. Func.} & \textbf{¿Qué sigue?} & \textbf{Docente Decisor} & \textbf{Escalable} & \textbf{Marco Legal} \\
+		\hline
+		Autograders & Cumple & No cumple & No cumple & Cumple & Cumple \\
+		IA Gen. Espec. & Parcial & Cumple & No cumple & Cumple & Parcial \\
+		CI/CD (CodeRabbit) & Cumple & Parcial & No cumple & Cumple & Parcial \\
+		IA Libre (ChatGPT) & Parcial & Parcial & No cumple & Cumple & No cumple \\
+		\hline
+	\end{tabular}
+\end{table}
+
+El análisis evidencia que, si bien los cuatro enfoques ofrecen algún grado de escalabilidad, ninguno de ellos preserva de forma consistente al docente como decisor del proceso de retroalimentación, lo que justifica el desarrollo de una solución propia que atienda específicamente esta carencia.
+
+\subsection{Solución Propuesta}
+EduTrace se define como una herramienta de apoyo a la retroalimentación formativa en cursos de introducción a la programación. A partir de las entregas de código de los estudiantes, el sistema genera retroalimentación de tipo feed-forward, orientada a indicar el siguiente paso a seguir en lugar de limitarse a señalar errores. La herramienta opera bajo el principio de human-in-the-loop, de modo que la retroalimentación se entrega al docente como un comentario o una sugerencia y no como una calificación; en consecuencia, el profesor conserva en todo momento la decisión final sobre la nota asignada a cada estudiante.
+
+\subsection{Especificación de Requisitos}
+
+\subsubsection{Requisitos funcionales}
+Los requisitos funcionales se clasificaron según el modelo FURPS+ y se priorizaron mediante la técnica MoSCoW (Must, Should, Could), con el fin de precisar el alcance mínimo viable de la solución, tal como se sintetiza en la Tabla \ref{tab:req_funcional}.
+
+\begin{table}[ht]
+	\centering
+	\caption{Especificación de Requisitos Funcionales (RF)}
+	\label{tab:req_funcional}
+	\begin{tabular}{lp{5.0cm}l}
+		\hline
+		\textbf{ID} & \textbf{Descripción} & \textbf{Prioridad} \\
+		\hline
+		RF-01 & Generar retroalimentación formativa adaptada al nivel de Introducción a la Programación. & Must \\
+		RF-02 & Estructurar la retroalimentación según las tres preguntas de Hattie y Timperley. & Must \\
+		RF-03 & Priorizar la etapa “¿Qué sigue?” en la retroalimentación generada. & Must \\
+		RF-04 & Evaluar la corrección funcional del código entregado mediante casos de prueba. & Must \\
+		RF-05 & Evaluar la legibilidad del código entregado. & Should \\
+		RF-06 & Evaluar la mantenibilidad del código entregado. & Should \\
+		RF-07 & Evaluar la documentación del código entregado. & Could \\
+		RF-08 & Entregar pistas orientadas al razonamiento del estudiante sin resolver el ejercicio. & Must \\
+		RF-09 & Abstenerse de revelar la solución completa al estudiante. & Must \\
+		RF-10 & Permitir al docente revisar la retroalimentación antes de entregarla al estudiante. & Must \\
+		RF-11 & Permitir al docente editar la retroalimentación antes de entregarla. & Must \\
+		RF-12 & Permitir al docente aprobar la retroalimentación antes de entregarla. & Must \\
+		RF-13 & Permitir al docente descartar la retroalimentación antes de entregarla. & Must \\
+		RF-14 & Permitir al docente configurar los criterios de evaluación. & Must \\
+		RF-15 & Permitir al docente definir la rúbrica que guía la retroalimentación. & Should \\
+		RF-16 & Ejecutarse automáticamente ante cada entrega del estudiante. & Must \\
+		RF-17 & Separar la retroalimentación formativa de la calificación sumativa. & Must \\
+		RF-18 & Indicar al estudiante cuándo la IA participó en la retroalimentación. & Must \\
+		RF-19 & Identificar el contenido generado por IA de forma distinguible. & Should \\
+		RF-20 & Registrar cada intervención del docente sobre la retroalimentación (autor, acción y fecha). & Should \\
+		RF-21 & Presentar al docente un reporte de errores frecuentes del curso. & Should \\
+		RF-22 & Permitir al estudiante solicitar aclaración sobre la retroalimentación recibida. & Could \\
+		RF-23 & Permitir al estudiante iterar sobre la retroalimentación reanimando nuevas versiones. & Could \\
+		\hline
+	\end{tabular}
+\end{table}
+
+\subsubsection{Requisitos no funcionales}
+De la misma forma, los requisitos no funcionales priorizados según el modelo MoSCoW se presentan organizados en la Tabla \ref{tab:req_nofuncional}.
+
+\begin{table}[ht]
+	\centering
+	\caption{Especificación de Requisitos No Funcionales (RNF)}
+	\label{tab:req_nofuncional}
+	\begin{tabular}{lp{5.0cm}l}
+		\hline
+		\textbf{ID} & \textbf{Descripción} & \textbf{Prioridad} \\
+		\hline
+		RNF-01 & Cumplir la Ley 1581 de 2012 para la protección de datos personales. & Must \\
+		RNF-02 & Cumplir la Circular Externa 002 de 2024 de la SIC. & Must \\
+		RNF-03 & Garantizar la confidencialidad del código del estudiante. & Must \\
+		RNF-04 & Garantizar la confidencialidad de los datos personales del estudiante. & Must \\
+		RNF-05 & Controlar la información enviada a servicios de IA externos. & Must \\
+		RNF-06 & Someter toda retroalimentación automática a validación docente previa. & Must \\
+		RNF-07 & Preservar al docente como decisor final del proceso. & Must \\
+		RNF-08 & Mantener el tiempo de revisión docente por entrega bajo un umbral definido. & Must \\
+		RNF-09 & Expresar la retroalimentación en lenguaje comprensible para el estudiante. & Should \\
+		RNF-10 & Procesar el volumen total de entregas dentro del plazo definido. & Must \\
+		RNF-11 & Entregar la retroalimentación dentro del plazo que preserva su valor formativo. & Should \\
+		RNF-12 & Operar bajo condiciones de conectividad limitadas. & Should \\
+		RNF-13 & Integrarse con la plataforma institucional existente. & Could \\
+		RNF-14 & Conservar la entrega del estudiante ante fallo del componente de IA. & Should \\
+		RNF-15 & Notificar al docente ante fallo del componente de IA. & Could \\
+		RNF-16 & Preservar el vínculo docente-estudiante manteniendo un canal humano identificable. & Should \\
+		\hline
+	\end{tabular}
+\end{table}
+
+\subsubsection{Restricciones de viabilidad}
+\begin{itemize}
+	\item \textbf{RV-01:} La adopción debe justificar el costo de infraestructura frente al beneficio formativo.
+	\item \textbf{RV-02:} La solución debe sostenerse en mantenimiento a largo plazo.
+	\item \textbf{RV-03:} La solución debe contemplar el costo de actualización de los modelos de IA.
+\end{itemize}
+
+\subsection{Diagrama de Actividad del Sistema}
+El funcionamiento operativo de EduTrace se modeló mediante un diagrama de actividad que distingue las acciones del estudiante de las que ejecuta el orquestador de la plataforma. El estudiante inicia el proceso subiendo su código, tras lo cual el orquestador recibe la petición y determina, según la intención expresada, si debe procesar una entrega o resolver una consulta. En el flujo de entrega, el orquestador analiza el código entregado, genera sugerencias de mejora y las muestra al estudiante para que las tenga en cuenta en próximas entregas. En el flujo de revisión, el orquestador identifica las dudas del estudiante sobre su código o sobre los ejercicios propuestos, consulta la base de datos institucional de EduTrace compuesta por el syllabus de la asignatura de Introducción a la Programación de la Pontificia Universidad Javeriana y por un banco de ejercicios, soluciones y casos de prueba y genera una respuesta basada en la información consultada, la cual es finalmente mostrada al estudiante.
+
+Este flujo se complementa con una heurística de apoyo proactivo y visibilidad del progreso, estructurada en cinco pasos iterativos: (1) el estudiante sube su código; (2) el sistema analiza el código de forma inmediata; (3) se entrega un feedback proactivo, con sugerencias y errores específicos señalados antes de la entrega formal; (4) el estudiante visualiza su progreso y mejora de manera continua; y (5) el estudiante realiza la entrega final cuando se siente listo y con mayor confianza en su solución. Este ciclo se repite de forma iterativa, favoreciendo la mejora continua del estudiante antes de la calificación definitiva.
+
+\subsection{Modelo de Negocio}
+
+\subsubsection{Modelo de negocio institucional}
+EduTrace busca su adopción y sostenibilidad dentro de la Pontificia Universidad Javeriana y, posteriormente, en otras universidades que impartan la asignatura de introducción a la programación. Su propuesta de valor institucional consiste en mejorar la retroalimentación en programación, fortalecer el aprendizaje y apoyar la labor docente. El modelo de negocio institucional contempla tres etapas: primero, la financiación inicial, orientada a buscar apoyo y financiación institucional dentro de la Universidad Javeriana para implementar y sostener la herramienta; segundo, la validación y adopción, mediante la implementación de la solución en cursos de introducción a la programación y la demostración de su impacto educativo; y tercero, la expansión, en la cual, una vez validada la solución, se amplía su alcance mediante estrategias de difusión dirigidas a otras universidades interesadas.
+
+\subsubsection{Value Proposition Canvas}
+Con el fin de precisar el ajuste entre la propuesta de valor y las necesidades de cada segmento, se elaboraron dos lienzos de propuesta de valor: uno centrado en el estudiante y otro en el docente.
+
+Desde la perspectiva del estudiante, los productos y servicios ofrecidos por EduTrace consisten en retroalimentación impulsada por IA sobre las entregas de introducción a la programación, comentarios accionables y formativos, y un modelo con supervisión humana en el que el profesor conserva la decisión final. Como creadores de alegría se identifican la adaptación de la retroalimentación al nivel del estudiante, la indicación clara del próximo paso a seguir y la reducción de la carga de lectura repetitiva sobre el profesor; como aliviadores de frustraciones, la traducción de lo que está mal en una explicación de cómo avanzar, el uso de un lenguaje comprensible y la ampliación de la capacidad del profesor sin reemplazarlo. Los trabajos del cliente incluyen tener un próximo paso claro, recibir retroalimentación inmediata y adaptada a su nivel, y desarrollar autonomía; sus ganancias esperadas son resolver el ejercicio, entender por qué falló y aprender sin depender exclusivamente de la calificación, mientras que sus frustraciones incluyen recibir una respuesta sin saber cómo avanzar, enfrentarse a un lenguaje que no domina y depender ciegamente de la inteligencia artificial.
+
+Desde la perspectiva del docente, la propuesta de valor comparte los mismos productos y servicios, retroalimentación impulsada por IA, comentarios accionables y un modelo con supervisión humana pero se orienta a distintos creadores de alegría y aliviadores de frustraciones: adaptar la retroalimentación al nivel del estudiante, indicar con claridad el próximo paso y reducir la lectura repetitiva del profesor, junto con ampliar su capacidad sin reemplazarlo. Los trabajos del cliente propios del docente son calificar las entregas, ofrecer retroalimentación útil a muchos estudiantes y enseñar sin dejar atrás al estudiante principiante; sus ganancias esperadas consisten en poder dar comentarios y consejos y no solo una nota, conservar la calificación bajo su propio control y reducir la lectura repetitiva, mientras que su principal frustración es calificar a un número elevado de estudiantes garantizando el aprendizaje de todos ellos.
+
+\subsection{Impulsores del Roadmapping}
+Finalmente, se identificaron los impulsores que sustentan la hoja de ruta del proyecto, agrupados según su naturaleza:
+
+\begin{itemize}
+	\item \textbf{Demanda (mercado institucional):} La sección de programación necesita retroalimentación de calidad a escala, entregada de forma apropiada.
+	\item \textbf{Tecnológico-social:} Un porcentaje mayoritario de los estudiantes ya recurre a la inteligencia artificial, por lo que se requiere canalizar esa conducta hacia el aprendizaje.
+	\item \textbf{Diferenciación:} Las herramientas existentes priorizan la velocidad de producción de código y no el aprendizaje del estudiante.
+	\item \textbf{Valor:} Amplificar la capacidad docente sin reemplazarla.
+	\item \textbf{Sostenibilidad:} Financiación institucional.
+\end{itemize}
 
 
 \addtolength{\textheight}{-12cm}   % This command serves to balance the column lengths
