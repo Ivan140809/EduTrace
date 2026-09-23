@@ -1,0 +1,1186 @@
+{
+  "info": {
+    "name": "EduTrace API (MVP)",
+    "description": "Colección para probar el backend MVP de EduTrace.\n\n1. Arranca el backend: `uvicorn app.main:app --reload --port 8000`.\n2. Ejecuta un **Login** (guarda el token solo).\n3. Llama cualquier endpoint.\n\nPara correr todo en orden: botón **Run collection**. Las carpetas 1 → 4 son el flujo completo: el estudiante entrega, el docente aprueba, el estudiante ve la retroalimentación, y al final los errores esperados.\n\nVariables (pestaña *Variables* de la colección): `baseUrl`, `token`, `cursoId`, `tareaId`, `entregaId`. Los scripts de *Tests* las van llenando.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000/api/v1"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "cursoId",
+      "value": "c0000000-0000-4000-8000-000000000001"
+    },
+    {
+      "key": "juanId",
+      "value": "e0000000-0000-4000-8000-000000000001"
+    },
+    {
+      "key": "tareaId",
+      "value": ""
+    },
+    {
+      "key": "entregaId",
+      "value": ""
+    },
+    {
+      "key": "notificacionId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Estudiante entrega código",
+      "item": [
+        {
+          "name": "Login estudiante (Juan)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"jperezg@javeriana.edu.co\",\n  \"contrasena\": \"estudiante123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Guarda el token en la variable {{token}}. Todas las demás peticiones lo envían como Authorization: Bearer {{token}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set(\"token\", r.token);",
+                  "pm.test(\"Rol estudiante\", () => pm.expect(r.usuario.rol).to.eql(\"estudiante\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mis tareas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/estudiantes/me/cursos/{{cursoId}}/tareas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estudiantes",
+                "me",
+                "cursos",
+                "{{cursoId}}",
+                "tareas"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const t = pm.response.json().find(x => x.titulo.startsWith(\"Tarea 4\"));",
+                  "pm.collectionVariables.set(\"tareaId\", t.tareaId);",
+                  "pm.test(\"Tiene la Tarea 4\", () => pm.expect(t).to.be.an(\"object\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Subir código (revisión previa)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tareas/{{tareaId}}/entregas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tareas",
+                "{{tareaId}}",
+                "entregas"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tipo\": \"revision\",\n  \"archivos\": [\n    {\n      \"nombre\": \"promedio.cpp\",\n      \"contenido\": \"#include <iostream>\\nusing namespace std;\\n\\nint main() {\\n    int notas[5] = {40, 35, 50, 28, 45};\\n    int suma = 0;\\n    for (int i = 0; i < 5; i++) suma += notas[i];\\n    cout << \\\"Promedio: \\\" << suma / 5 << endl;\\n    return 0;\\n}\\n\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "tipo 'revision' no gasta intentos, así que la colección se puede correr muchas veces. Cambia a 'oficial' para gastar un intento (máximo 3)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 202\", () => pm.response.to.have.status(202));",
+                  "const e = pm.response.json();",
+                  "pm.collectionVariables.set(\"entregaId\", e.id);",
+                  "pm.test(\"No cuenta como intento\", () => pm.expect(e.numeroIntento).to.eql(null));",
+                  "pm.test(\"El estudiante aún no ve retroalimentación\", () => pm.expect(e.retroalimentacion).to.eql(null));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ver mi entrega (aún sin retroalimentación)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/entregas/{{entregaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregas",
+                "{{entregaId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Sigue oculta hasta que el docente apruebe\", () => pm.expect(pm.response.json().retroalimentacion).to.eql(null));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Docente revisa y aprueba",
+      "item": [
+        {
+          "name": "Login docente",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"pperez@javeriana.edu.co\",\n  \"contrasena\": \"docente123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Guarda el token en la variable {{token}}. Todas las demás peticiones lo envían como Authorization: Bearer {{token}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set(\"token\", r.token);",
+                  "pm.test(\"Rol docente\", () => pm.expect(r.usuario.rol).to.eql(\"docente\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mi usuario",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mis cursos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/cursos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cursos"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Al menos un curso\", () => pm.expect(pm.response.json().length).to.be.above(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Detalle del curso",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/cursos/{{cursoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cursos",
+                "{{cursoId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tareas del curso",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/cursos/{{cursoId}}/tareas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cursos",
+                "{{cursoId}}",
+                "tareas"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Detalle de la tarea",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tareas/{{tareaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tareas",
+                "{{tareaId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resumen de la tarea",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tareas/{{tareaId}}/resumen",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tareas",
+                "{{tareaId}}",
+                "resumen"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Hay pendientes\", () => pm.expect(pm.response.json().pendientesRevision).to.be.above(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Entregas de la tarea",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tareas/{{tareaId}}/entregas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tareas",
+                "{{tareaId}}",
+                "entregas"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ver entrega (vista docente)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/entregas/{{entregaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregas",
+                "{{entregaId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Trae código y borrador\", () => { const e = pm.response.json(); pm.expect(e.archivos).to.have.length.above(0); pm.expect(e.retroalimentacion.estado).to.eql(\"pendiente_revision\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Código entregado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/entregas/{{entregaId}}/archivos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregas",
+                "{{entregaId}}",
+                "archivos"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ver borrador",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/entregas/{{entregaId}}/retroalimentacion",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregas",
+                "{{entregaId}}",
+                "retroalimentacion"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Editar borrador",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/entregas/{{entregaId}}/retroalimentacion",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregas",
+                "{{entregaId}}",
+                "retroalimentacion"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"secciones\": {\n    \"haciaDondeVoy\": \"Recorrer un arreglo sin salirte de sus límites.\",\n    \"comoVoy\": \"El promedio funciona, pero N está repetido como número mágico.\",\n    \"queSigue\": \"¿Qué pasa con tu programa si el arreglo tiene 6 notas?\",\n    \"pistas\": [\n      \"Usa una constante para el tamaño.\"\n    ]\n  },\n  \"comentarioDocente\": \"Buen trabajo, Juan.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Queda como editada por el docente\", () => pm.expect(pm.response.json().origen).to.eql(\"ia_editada\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Aprobar y enviar",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/entregas/{{entregaId}}/retroalimentacion/aprobar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregas",
+                "{{entregaId}}",
+                "retroalimentacion",
+                "aprobar"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Queda enviada\", () => pm.expect(pm.response.json().estado).to.eql(\"enviada\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Intentos de Juan (vista docente)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tareas/{{tareaId}}/intentos?estudianteId={{juanId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tareas",
+                "{{tareaId}}",
+                "intentos"
+              ],
+              "query": [
+                {
+                  "key": "estudianteId",
+                  "value": "{{juanId}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear tarea",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/cursos/{{cursoId}}/tareas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cursos",
+                "{{cursoId}}",
+                "tareas"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titulo\": \"Tarea de prueba desde Postman\",\n  \"lenguaje\": \"cpp\",\n  \"fechaLimite\": \"2030-12-31T23:59:00Z\",\n  \"maxIntentos\": 3,\n  \"casosPrueba\": [\n    {\n      \"nombre\": \"Caso oculto\",\n      \"entrada\": \"5\",\n      \"salidaEsperada\": \"25\",\n      \"visibleEstudiante\": false\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Notificaciones del docente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notificaciones",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notificaciones"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Estudiante ve la retroalimentación",
+      "item": [
+        {
+          "name": "Login estudiante (Juan)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"jperezg@javeriana.edu.co\",\n  \"contrasena\": \"estudiante123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Guarda el token en la variable {{token}}. Todas las demás peticiones lo envían como Authorization: Bearer {{token}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set(\"token\", r.token);",
+                  "pm.test(\"Rol estudiante\", () => pm.expect(r.usuario.rol).to.eql(\"estudiante\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ver mi entrega (ya con retroalimentación)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/entregas/{{entregaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregas",
+                "{{entregaId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json().retroalimentacion;",
+                  "pm.test(\"Ahora sí la ve\", () => pm.expect(r).to.be.an(\"object\"));",
+                  "pm.test(\"Avisa que participó la IA (RF-18)\", () => pm.expect(r.aviso.participoIA).to.eql(true));",
+                  "pm.test(\"No trae nota numérica (RF-17)\", () => pm.expect(r).to.not.have.property(\"nota\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Marcar como leída",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/entregas/{{entregaId}}/retroalimentacion/leida",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregas",
+                "{{entregaId}}",
+                "retroalimentacion",
+                "leida"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mi historial de intentos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tareas/{{tareaId}}/intentos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tareas",
+                "{{tareaId}}",
+                "intentos"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mi progreso",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/estudiantes/me/cursos/{{cursoId}}/progreso",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "estudiantes",
+                "me",
+                "cursos",
+                "{{cursoId}}",
+                "progreso"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mis notificaciones (solo no leídas)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notificaciones?noLeidas=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notificaciones"
+              ],
+              "query": [
+                {
+                  "key": "noLeidas",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const n = pm.response.json();",
+                  "if (n.items.length) pm.collectionVariables.set(\"notificacionId\", n.items[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Marcar notificación como leída",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notificaciones/{{notificacionId}}/leida",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notificaciones",
+                "{{notificacionId}}",
+                "leida"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"204, o 404 si no había notificaciones\", () => pm.expect(pm.response.code).to.be.oneOf([204, 404]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Errores esperados",
+      "item": [
+        {
+          "name": "Estudiante intenta aprobar → 403",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/entregas/{{entregaId}}/retroalimentacion/aprobar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregas",
+                "{{entregaId}}",
+                "retroalimentacion",
+                "aprobar"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"Formato de error del contrato\", () => pm.expect(pm.response.json().error.codigo).to.eql(\"PROHIBIDO\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Estudiante intenta ver la cola del docente → 403",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tareas/{{tareaId}}/entregas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tareas",
+                "{{tareaId}}",
+                "entregas"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Datos inválidos → 422",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/tareas/{{tareaId}}/entregas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tareas",
+                "{{tareaId}}",
+                "entregas"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tipo\": \"otro\",\n  \"archivos\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"Trae detalles por campo\", () => pm.expect(pm.response.json().error.detalles.length).to.be.above(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cerrar sesión",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Usar el token después de cerrar sesión → 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 401\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Contraseña incorrecta → 401",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"pperez@javeriana.edu.co\",\n  \"contrasena\": \"mala\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 401\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"Código CREDENCIALES_INVALIDAS\", () => pm.expect(pm.response.json().error.codigo).to.eql(\"CREDENCIALES_INVALIDAS\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
