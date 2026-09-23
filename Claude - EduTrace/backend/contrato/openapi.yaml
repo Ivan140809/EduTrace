@@ -1,0 +1,1348 @@
+openapi: 3.1.0
+info:
+  title: EduTrace API
+  version: 0.4.0-borrador
+  description: |
+    Contrato entre el frontend (Vite + React + TypeScript) y el backend (Python) de EduTrace.
+
+    Derivado de: Fase de Análisis (RF-01..RF-23, RNF-01..RNF-16) y del mockup `preview.html`.
+    Cada operación indica en `x-rf` los requisitos que cubre y en `x-pantalla` la vista del mockup que la consume.
+
+    Convenciones:
+    - Prefijo: `/api/v1`. JSON en camelCase (en Pydantic: `alias_generator=to_camel`).
+    - IDs: UUID como string. Fechas: ISO 8601 en UTC.
+    - Autenticación: `Authorization: Bearer <token>` (JWT). Todas las rutas la exigen salvo `/auth/login`.
+    - Listas paginadas: `?page=1&size=20` → `{ items, total, page, size }`.
+    - Errores: siempre el esquema `Error`.
+
+    Regla transversal (RF-17, RNF-06, RNF-07): la retroalimentación **nunca** lleva nota numérica y **nunca**
+    es visible para el estudiante antes de que un docente la apruebe. El backend lo hace cumplir, no el frontend.
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Desarrollo local
+
+tags:
+  - name: Auth
+  - name: Cursos
+  - name: Tareas
+  - name: Entregas
+  - name: Retroalimentación (docente)
+  - name: Estudiante
+  - name: Dudas
+  - name: Reportes
+  - name: Notificaciones
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ───────────────────────── AUTH ─────────────────────────
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Iniciar sesión con correo institucional
+      x-pantalla: LoginView
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Sesión iniciada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '422': { $ref: '#/components/responses/Validacion' }
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Usuario de la sesión actual
+      x-pantalla: TopBar
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Usuario' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Cerrar sesión (invalida el token)
+      x-pantalla: TopBar
+      responses:
+        '204': { description: Sesión cerrada }
+
+  # ───────────────────────── CURSOS ─────────────────────────
+  /cursos:
+    get:
+      tags: [Cursos]
+      summary: Cursos del usuario (docente o estudiante)
+      x-pantalla: Sidebar "Cursos" / "Mis cursos"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Curso' }
+
+  /cursos/{cursoId}:
+    parameters: [{ $ref: '#/components/parameters/cursoId' }]
+    get:
+      tags: [Cursos]
+      summary: Detalle del curso
+      x-pantalla: StudentPanel (encabezado "Semana 8 de 16")
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Curso' }
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /cursos/{cursoId}/estudiantes:
+    parameters: [{ $ref: '#/components/parameters/cursoId' }]
+    get:
+      tags: [Cursos]
+      summary: Estudiantes inscritos (solo docente)
+      x-pantalla: Sidebar "Estudiantes"
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Pagina'
+                  - type: object
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/UsuarioResumen' }
+        '403': { $ref: '#/components/responses/Prohibido' }
+
+  /cursos/{cursoId}/raes:
+    parameters: [{ $ref: '#/components/parameters/cursoId' }]
+    get:
+      tags: [Cursos]
+      summary: Resultados de Aprendizaje Esperados del syllabus
+      x-pantalla: ReportsView (pestaña RAE's)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Rae' }
+
+  /cursos/{cursoId}/temas:
+    parameters: [{ $ref: '#/components/parameters/cursoId' }]
+    get:
+      tags: [Cursos]
+      summary: Temas y subtemas del syllabus
+      x-pantalla: ReportsView (pestaña Temas)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Tema' }
+
+  # ───────────────────────── TAREAS ─────────────────────────
+  /cursos/{cursoId}/tareas:
+    parameters: [{ $ref: '#/components/parameters/cursoId' }]
+    get:
+      tags: [Tareas]
+      summary: Tareas del curso
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Tarea' }
+    post:
+      tags: [Tareas]
+      summary: Crear tarea con criterios, rúbrica y casos de prueba (solo docente)
+      x-rf: [RF-14, RF-15, RF-04]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TareaCrear' }
+      responses:
+        '201':
+          description: Creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tarea' }
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '422': { $ref: '#/components/responses/Validacion' }
+
+  /tareas/{tareaId}:
+    parameters: [{ $ref: '#/components/parameters/tareaId' }]
+    get:
+      tags: [Tareas]
+      summary: Detalle de la tarea
+      description: El estudiante no recibe `casosPrueba` ocultos ni la `rubrica` interna.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tarea' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+    patch:
+      tags: [Tareas]
+      summary: Editar criterios o configuración (solo docente)
+      x-rf: [RF-14, RF-15]
+      description: No altera análisis ya generados; aplica a entregas nuevas.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TareaCrear' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tarea' }
+        '403': { $ref: '#/components/responses/Prohibido' }
+
+  /tareas/{tareaId}/resumen:
+    parameters: [{ $ref: '#/components/parameters/tareaId' }]
+    get:
+      tags: [Tareas]
+      summary: Métricas del tablero docente para la tarea
+      x-pantalla: ProfessorDashboard (tarjetas de estadísticas)
+      x-rf: [RNF-08, RNF-11]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ResumenTarea' }
+        '403': { $ref: '#/components/responses/Prohibido' }
+
+  /tareas/{tareaId}/entregas:
+    parameters: [{ $ref: '#/components/parameters/tareaId' }]
+    get:
+      tags: [Entregas]
+      summary: Entregas de la tarea (solo docente)
+      x-pantalla: ProfessorDashboard / Sidebar "Entregas"
+      x-rf: [RF-10]
+      description: |
+        Devuelve la colección completa, de la más reciente a la más antigua, sin parámetros en la URL.
+        La cola "por revisar" es el filtro `estado === "pendiente_revision"` que hace el frontend.
+        A escala de un curso (~40 estudiantes × intentos) el tamaño es manejable.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/EntregaResumen' }
+        '403': { $ref: '#/components/responses/Prohibido' }
+    post:
+      tags: [Entregas]
+      summary: Subir código (entrega oficial o revisión previa) — solo estudiante
+      x-pantalla: StudentPanel ("Empezar", "Revisar mi código")
+      x-rf: [RF-16, RF-23, RNF-14]
+      description: |
+        Responde 202 de inmediato. El análisis se dispara solo (RF-16), sin intervención manual.
+        Si el componente de IA falla, la entrega queda guardada con estado `error_analisis` (RNF-14).
+        Una entrega `oficial` consume un intento; una `revision` no.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EntregaCrear' }
+      responses:
+        '202':
+          description: Recibida; el análisis corre en segundo plano
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EntregaEstudiante' }
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '409':
+          description: 'Intentos agotados (`INTENTOS_AGOTADOS`) o tarea cerrada (`TAREA_CERRADA`)'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '413':
+          description: Archivos exceden el tamaño máximo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/Validacion' }
+
+  /tareas/{tareaId}/intentos:
+    parameters: [{ $ref: '#/components/parameters/tareaId' }]
+    get:
+      tags: [Entregas]
+      summary: Historial de intentos de un estudiante en la tarea
+      x-pantalla: StudentPanel ("Historial de intentos")
+      x-rf: [RF-23]
+      description: El estudiante solo ve los suyos (se ignora `estudianteId`). El docente debe enviar `estudianteId`.
+      parameters:
+        - name: estudianteId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK, del más reciente al más antiguo
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Intento' }
+
+  # ───────────────────────── ENTREGAS ─────────────────────────
+  /entregas/{entregaId}:
+    parameters: [{ $ref: '#/components/parameters/entregaId' }]
+    get:
+      tags: [Entregas]
+      summary: Detalle de una entrega
+      description: |
+        La respuesta depende del rol:
+        - Docente → `EntregaDocente` (incluye análisis y borrador).
+        - Estudiante dueño → `EntregaEstudiante` (solo retroalimentación publicada; nunca el borrador).
+        - Cualquier otro → 403 (RNF-03).
+      x-rf: [RNF-03, RNF-06]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/EntregaDocente'
+                  - $ref: '#/components/schemas/EntregaEstudiante'
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+
+  /entregas/{entregaId}/archivos:
+    parameters: [{ $ref: '#/components/parameters/entregaId' }]
+    get:
+      tags: [Entregas]
+      summary: Código fuente entregado
+      x-pantalla: ProfessorDashboard (visor de código)
+      x-rf: [RNF-03]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ArchivoCodigo' }
+        '403': { $ref: '#/components/responses/Prohibido' }
+
+  /entregas/{entregaId}/reanalizar:
+    parameters: [{ $ref: '#/components/parameters/entregaId' }]
+    post:
+      tags: [Entregas]
+      summary: Reintentar el análisis tras un fallo de IA (solo docente)
+      x-rf: [RNF-14, RNF-15]
+      responses:
+        '202':
+          description: Reencolada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EntregaDocente' }
+        '409': { $ref: '#/components/responses/EstadoInvalido' }
+
+  # ─────────────── RETROALIMENTACIÓN (flujo human-in-the-loop) ───────────────
+  /entregas/{entregaId}/retroalimentacion:
+    parameters: [{ $ref: '#/components/parameters/entregaId' }]
+    get:
+      tags: [Retroalimentación (docente)]
+      summary: Borrador generado para revisión (solo docente)
+      x-pantalla: ProfessorDashboard ("Borrador generado · editable")
+      x-rf: [RF-01, RF-02, RF-03, RF-10, RF-19]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Retroalimentacion' }
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '409':
+          description: 'El análisis aún no termina (`ANALISIS_EN_CURSO`)'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    patch:
+      tags: [Retroalimentación (docente)]
+      summary: Editar el borrador y/o el comentario del docente
+      x-pantalla: ProfessorDashboard (textarea "Nota del docente")
+      x-rf: [RF-11, RF-20]
+      description: |
+        Solo en estado `pendiente_revision`. Si el origen era `ia`, pasa a `ia_editada`.
+        Registra un evento de auditoría `editar`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RetroalimentacionEditar' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Retroalimentacion' }
+        '409': { $ref: '#/components/responses/EstadoInvalido' }
+        '422': { $ref: '#/components/responses/Validacion' }
+
+  /entregas/{entregaId}/retroalimentacion/descartar:
+    parameters: [{ $ref: '#/components/parameters/entregaId' }]
+    post:
+      tags: [Retroalimentación (docente)]
+      summary: Descartar el borrador de IA y escribir desde cero
+      x-pantalla: ProfessorDashboard ("Descartar y escribir desde cero")
+      x-rf: [RF-13, RF-20]
+      description: |
+        Vacía las secciones generadas, marca `origen = docente` y deja la entrega en `pendiente_revision`
+        para que el docente redacte con PATCH y luego apruebe. Registra evento `descartar`.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                motivo: { type: string, maxLength: 500, description: Opcional; útil para mejorar el prompt }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Retroalimentacion' }
+        '409': { $ref: '#/components/responses/EstadoInvalido' }
+
+  /entregas/{entregaId}/retroalimentacion/aprobar:
+    parameters: [{ $ref: '#/components/parameters/entregaId' }]
+    post:
+      tags: [Retroalimentación (docente)]
+      summary: Aprobar y enviar al estudiante
+      x-pantalla: ProfessorDashboard ("Aprobar y enviar al estudiante")
+      x-rf: [RF-12, RF-20, RNF-06, RNF-07]
+      description: |
+        Única vía por la que la retroalimentación se vuelve visible para el estudiante.
+        Pasa la entrega a `enviada`, fija `fechaEnvio`, notifica al estudiante y registra evento `aprobar`.
+        Rechaza con 422 si `queSigue` está vacío (RF-03).
+      responses:
+        '200':
+          description: Enviada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EntregaDocente' }
+        '409': { $ref: '#/components/responses/EstadoInvalido' }
+        '422': { $ref: '#/components/responses/Validacion' }
+
+  /entregas/{entregaId}/calificacion:
+    parameters: [{ $ref: '#/components/parameters/entregaId' }]
+    put:
+      tags: [Retroalimentación (docente)]
+      summary: Registrar la nota sumativa (solo docente, separada del feedback)
+      x-rf: [RF-17, RNF-07]
+      description: |
+        Recurso independiente de la retroalimentación. La IA no propone ni escribe este valor.
+        Alimenta los reportes de trayectoria (eje X).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Calificacion' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Calificacion' }
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '422': { $ref: '#/components/responses/Validacion' }
+
+  /entregas/{entregaId}/auditoria:
+    parameters: [{ $ref: '#/components/parameters/entregaId' }]
+    get:
+      tags: [Retroalimentación (docente)]
+      summary: Registro de intervenciones sobre la retroalimentación
+      x-rf: [RF-20]
+      responses:
+        '200':
+          description: OK, en orden cronológico
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/EventoAuditoria' }
+
+  # ───────────────────────── ESTUDIANTE ─────────────────────────
+  /estudiantes/me/cursos/{cursoId}/tareas:
+    parameters: [{ $ref: '#/components/parameters/cursoId' }]
+    get:
+      tags: [Estudiante]
+      summary: Mis entregas (tareas del curso con su estado para el estudiante de la sesión)
+      x-pantalla: StudentPanel ("Mis entregas")
+      description: El estudiante se identifica por el token; el curso, por la ruta.
+      responses:
+        '200':
+          description: OK, ordenadas por fecha límite
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TareaEstudiante' }
+        '403': { $ref: '#/components/responses/Prohibido' }
+
+  /estudiantes/me/cursos/{cursoId}/progreso:
+    parameters: [{ $ref: '#/components/parameters/cursoId' }]
+    get:
+      tags: [Estudiante]
+      summary: Mi progreso en el curso
+      x-pantalla: StudentPanel ("Mi progreso en el curso", "Dónde me cuesta más")
+      description: El estudiante se identifica por el token; el curso, por la ruta.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProgresoEstudiante' }
+        '403': { $ref: '#/components/responses/Prohibido' }
+
+  /entregas/{entregaId}/retroalimentacion/leida:
+    parameters: [{ $ref: '#/components/parameters/entregaId' }]
+    post:
+      tags: [Estudiante]
+      summary: Marcar la retroalimentación como leída
+      x-pantalla: StudentPanel (banner "Nueva retroalimentación")
+      responses:
+        '204': { description: OK }
+        '409': { $ref: '#/components/responses/EstadoInvalido' }
+
+  # ───────────────────────── DUDAS ─────────────────────────
+  /entregas/{entregaId}/dudas:
+    parameters: [{ $ref: '#/components/parameters/entregaId' }]
+    get:
+      tags: [Dudas]
+      summary: Dudas del estudiante sobre esta retroalimentación
+      x-rf: [RF-22]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Duda' }
+    post:
+      tags: [Dudas]
+      summary: Enviar una duda (estudiante)
+      x-pantalla: StudentPanel ("Tengo una duda sobre esto")
+      x-rf: [RF-22, RNF-16]
+      description: |
+        La IA puede redactar un borrador de respuesta (RAG sobre syllabus y banco de ejercicios),
+        pero la respuesta sigue el mismo flujo de aprobación docente que la retroalimentación (RNF-06).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pregunta]
+              properties:
+                pregunta: { type: string, minLength: 3, maxLength: 1000 }
+      responses:
+        '201':
+          description: Creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Duda' }
+        '409': { $ref: '#/components/responses/EstadoInvalido' }
+
+  /dudas/{dudaId}/responder:
+    parameters:
+      - name: dudaId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Dudas]
+      summary: Aprobar (con o sin edición) la respuesta a una duda (docente)
+      x-rf: [RF-22, RF-20, RNF-06]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [respuesta]
+              properties:
+                respuesta: { type: string, minLength: 1 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Duda' }
+
+  # ───────────────────────── REPORTES ─────────────────────────
+  /cursos/{cursoId}/reportes/trayectoria:
+    parameters: [{ $ref: '#/components/parameters/cursoId' }]
+    get:
+      tags: [Reportes]
+      summary: Mapa de desempeño vs. dificultad por RAE o tema y corte (solo docente)
+      x-pantalla: ReportsView
+      description: |
+        Devuelve los puntos crudos por estudiante y la fricción comparada entre ítems.
+        Los agregados (clusters, delta, % en riesgo) los calcula el frontend como en el mockup
+        en el MVP; los umbrales vienen en `umbrales` para no quemarlos en dos lados.
+      parameters:
+        - name: dimension
+          in: query
+          required: true
+          schema: { type: string, enum: [rae, tema] }
+        - name: itemId
+          in: query
+          required: true
+          description: ID del RAE o tema seleccionado
+          schema: { type: string }
+        - name: corte
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/Corte' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReporteTrayectoria' }
+        '403': { $ref: '#/components/responses/Prohibido' }
+
+  /cursos/{cursoId}/reportes/errores-frecuentes:
+    parameters: [{ $ref: '#/components/parameters/cursoId' }]
+    get:
+      tags: [Reportes]
+      summary: Errores más frecuentes del curso (solo docente)
+      x-rf: [RF-21]
+      x-pantalla: No existe en el mockup (pendiente de diseñar)
+      parameters:
+        - name: tareaId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: limite
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50, default: 10 }
+      responses:
+        '200':
+          description: OK, ordenados por ocurrencias desc
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ErrorFrecuente' }
+
+  # ───────────────────────── NOTIFICACIONES ─────────────────────────
+  /notificaciones:
+    get:
+      tags: [Notificaciones]
+      summary: Notificaciones del usuario
+      x-pantalla: TopBar (campana)
+      parameters:
+        - name: noLeidas
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [noLeidas, items]
+                properties:
+                  noLeidas: { type: integer, description: Número del badge }
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Notificacion' }
+
+  /notificaciones/{notificacionId}/leida:
+    parameters:
+      - name: notificacionId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Notificaciones]
+      summary: Marcar notificación como leída
+      responses:
+        '204': { description: OK }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    cursoId:
+      name: cursoId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    tareaId:
+      name: tareaId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    entregaId:
+      name: entregaId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    size:
+      name: size
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+
+  responses:
+    NoAutenticado:
+      description: Falta token o es inválido
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Prohibido:
+      description: El rol o el usuario no tiene acceso a este recurso
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NoEncontrado:
+      description: No existe
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Validacion:
+      description: Datos inválidos
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    EstadoInvalido:
+      description: 'La operación no aplica al estado actual (`ESTADO_INVALIDO`), p. ej. aprobar algo ya enviado'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    # ─── comunes ───
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [codigo, mensaje]
+          properties:
+            codigo:
+              type: string
+              examples: [ESTADO_INVALIDO, INTENTOS_AGOTADOS, TAREA_CERRADA, ANALISIS_EN_CURSO, VALIDACION]
+            mensaje: { type: string, description: Texto mostrable al usuario }
+            detalles:
+              type: array
+              items:
+                type: object
+                properties:
+                  campo: { type: string }
+                  problema: { type: string }
+
+    Pagina:
+      type: object
+      required: [items, total, page, size]
+      properties:
+        items: { type: array, items: {} }
+        total: { type: integer }
+        page: { type: integer }
+        size: { type: integer }
+
+    Rol:
+      type: string
+      enum: [docente, estudiante]
+      description: '`monitor` (actor secundario) queda fuera del MVP'
+
+    Corte:
+      type: string
+      enum: [I, II, III]
+
+    # ─── auth / usuarios ───
+    LoginRequest:
+      type: object
+      required: [correo, contrasena]
+      properties:
+        correo: { type: string, format: email }
+        contrasena: { type: string, format: password }
+        mantenerSesion: { type: boolean, default: false }
+
+    LoginResponse:
+      type: object
+      required: [token, expiraEn, usuario]
+      properties:
+        token: { type: string }
+        expiraEn: { type: string, format: date-time }
+        usuario: { $ref: '#/components/schemas/Usuario' }
+
+    Usuario:
+      type: object
+      required: [id, nombre, correo, rol, iniciales]
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string, examples: [Pepito Perez] }
+        correo: { type: string, format: email }
+        rol: { $ref: '#/components/schemas/Rol' }
+        iniciales: { type: string, examples: [PP] }
+
+    UsuarioResumen:
+      type: object
+      required: [id, nombre]
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string }
+        correo: { type: string, format: email, description: Solo visible para el docente del curso }
+
+    # ─── cursos ───
+    Curso:
+      type: object
+      required: [id, nombre, periodo]
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string, examples: [Introducción a la Programación] }
+        periodo: { type: string, examples: [2026-1] }
+        semanaActual: { type: integer, examples: [8] }
+        semanasTotales: { type: integer, examples: [16] }
+        docentes:
+          type: array
+          items: { $ref: '#/components/schemas/UsuarioResumen' }
+
+    Rae:
+      type: object
+      required: [id, corto, texto]
+      properties:
+        id: { type: string, examples: ['1'] }
+        corto: { type: string, examples: [Caracterizar problemas] }
+        texto: { type: string }
+        etiquetas: { type: string, examples: [Disciplinar 1 · CDIO 2.1] }
+
+    Tema:
+      type: object
+      required: [id, titulo, subtemas]
+      properties:
+        id: { type: string, examples: ['3'] }
+        titulo: { type: string, examples: [Manejo de memoria con colecciones de datos] }
+        subtemas:
+          type: array
+          items: { type: string }
+
+    # ─── tareas ───
+    CasoPrueba:
+      type: object
+      required: [nombre, entrada, salidaEsperada]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        nombre: { type: string }
+        entrada: { type: string, description: stdin }
+        salidaEsperada: { type: string, description: stdout esperado }
+        visibleEstudiante:
+          type: boolean
+          default: false
+          description: Si es false, el estudiante solo ve si pasó o no, nunca la salida esperada (RF-09)
+
+    CriteriosEvaluacion:
+      type: object
+      description: Qué dimensiones analiza la IA (RF-04..RF-07, RF-14)
+      properties:
+        correccionFuncional: { type: boolean, default: true }
+        legibilidad: { type: boolean, default: true }
+        mantenibilidad: { type: boolean, default: true }
+        documentacion: { type: boolean, default: false }
+        instruccionesAdicionales:
+          type: string
+          maxLength: 2000
+          description: Texto libre del docente que se inyecta en el prompt
+
+    TareaCrear:
+      type: object
+      required: [titulo, lenguaje, fechaLimite, maxIntentos]
+      properties:
+        titulo: { type: string, examples: [Tarea 4 — Promedio de un arreglo] }
+        enunciado: { type: string }
+        lenguaje: { type: string, enum: [cpp, c, python, java], examples: [cpp] }
+        fechaLimite: { type: string, format: date-time }
+        maxIntentos: { type: integer, minimum: 1, examples: [3] }
+        corte: { $ref: '#/components/schemas/Corte' }
+        raeIds: { type: array, items: { type: string } }
+        temaIds: { type: array, items: { type: string } }
+        criterios: { $ref: '#/components/schemas/CriteriosEvaluacion' }
+        rubrica:
+          type: string
+          description: Markdown. Guía la retroalimentación, NO produce puntaje (RF-15, RF-17)
+        casosPrueba:
+          type: array
+          items: { $ref: '#/components/schemas/CasoPrueba' }
+        permitirRevisionPrevia:
+          type: boolean
+          default: true
+          description: Habilita el botón "Revisar mi código" (entregas tipo `revision`)
+
+    Tarea:
+      allOf:
+        - $ref: '#/components/schemas/TareaCrear'
+        - type: object
+          required: [id, cursoId, estado]
+          properties:
+            id: { type: string, format: uuid }
+            cursoId: { type: string, format: uuid }
+            estado: { type: string, enum: [borrador, abierta, cerrada] }
+
+    ResumenTarea:
+      type: object
+      required: [estudiantes, entregasRecibidas, pendientesRevision, tiempoMedioRespuestaHoras]
+      properties:
+        estudiantes: { type: integer, examples: [41] }
+        entregasRecibidas: { type: integer, examples: [21] }
+        pendientesRevision: { type: integer, examples: [16] }
+        tiempoMedioRespuestaHoras:
+          type: [number, 'null']
+          description: Promedio de (fechaEnvio - fechaEntrega) de entregas oficiales enviadas (RNF-11)
+          examples: [4.2]
+        tiempoMedioRevisionDocenteMin:
+          type: [number, 'null']
+          description: Tiempo que el docente tarda por entrega (RNF-08). Medido entre abrir y aprobar.
+
+    # ─── entregas ───
+    EstadoEntrega:
+      type: string
+      enum: [recibida, en_analisis, pendiente_revision, enviada, error_analisis]
+      description: |
+        recibida → en_analisis → pendiente_revision → enviada
+        en_analisis → error_analisis → (reanalizar) → en_analisis
+        Mapeo al pipeline del mockup: Entrega recibida / Análisis realizado / Feedback generado / Feedback enviado.
+
+    TipoEntrega:
+      type: string
+      enum: [oficial, revision]
+      description: '`revision` = "Subir código para revisión, sin entregar"; no consume intento'
+
+    ArchivoCodigoCrear:
+      type: object
+      required: [nombre, contenido]
+      properties:
+        nombre: { type: string, examples: [promedio_notas.cpp] }
+        contenido: { type: string, description: 'Texto UTF-8. Máx. propuesto: 200 KB en total por entrega' }
+
+    ArchivoCodigo:
+      allOf:
+        - $ref: '#/components/schemas/ArchivoCodigoCrear'
+        - type: object
+          properties:
+            lenguaje: { type: string }
+            lineas: { type: integer }
+
+    EntregaCrear:
+      type: object
+      required: [tipo, archivos]
+      properties:
+        tipo: { $ref: '#/components/schemas/TipoEntrega' }
+        archivos:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items: { $ref: '#/components/schemas/ArchivoCodigoCrear' }
+        dificultadPercibida:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: |
+            Autorreporte del estudiante. Lo exige el eje Y del reporte de trayectoria;
+            NO está en los RF actuales (ver decisiones abiertas).
+
+    EntregaResumen:
+      type: object
+      required: [id, estudiante, tipo, numeroIntento, estado, fechaEntrega]
+      properties:
+        id: { type: string, format: uuid }
+        tareaId: { type: string, format: uuid }
+        estudiante: { $ref: '#/components/schemas/UsuarioResumen' }
+        tipo: { $ref: '#/components/schemas/TipoEntrega' }
+        numeroIntento:
+          type: [integer, 'null']
+          description: null si tipo = revision
+          examples: [2]
+        maxIntentos: { type: integer, examples: [3] }
+        estado: { $ref: '#/components/schemas/EstadoEntrega' }
+        fechaEntrega: { type: string, format: date-time }
+        fechaEnvio: { type: [string, 'null'], format: date-time }
+
+    LineaMarcada:
+      type: object
+      required: [archivo, linea, severidad, mensaje]
+      properties:
+        archivo: { type: string }
+        linea: { type: integer, examples: [9] }
+        severidad: { type: string, enum: [error, advertencia, sugerencia] }
+        mensaje: { type: string, examples: [Índice fuera de rango] }
+
+    ResultadoPrueba:
+      type: object
+      required: [nombre, aprobado]
+      properties:
+        nombre: { type: string }
+        aprobado: { type: boolean }
+        salidaObtenida: { type: string, description: Solo si el caso es visible para el estudiante o quien consulta es docente }
+        salidaEsperada: { type: string, description: Ídem }
+
+    ResultadoAnalisis:
+      type: object
+      description: Salida técnica del análisis (no es la retroalimentación pedagógica)
+      properties:
+        compilacion:
+          type: object
+          properties:
+            ok: { type: boolean }
+            advertencias: { type: array, items: { type: string } }
+            errores: { type: array, items: { type: string } }
+        pruebas:
+          type: object
+          description: RF-04
+          properties:
+            total: { type: integer }
+            aprobadas: { type: integer }
+            casos:
+              type: array
+              items: { $ref: '#/components/schemas/ResultadoPrueba' }
+        observaciones:
+          type: object
+          description: RF-05, RF-06, RF-07 (null si el criterio está desactivado)
+          properties:
+            legibilidad: { type: [string, 'null'] }
+            mantenibilidad: { type: [string, 'null'] }
+            documentacion: { type: [string, 'null'] }
+        lineasMarcadas:
+          type: array
+          items: { $ref: '#/components/schemas/LineaMarcada' }
+        resumenCambios:
+          type: [string, 'null']
+          description: Qué cambió respecto al intento anterior (alimenta el historial de intentos)
+          examples: [Corrigió el tipo de la variable acumuladora]
+        modelo:
+          type: string
+          description: Modelo de IA usado (trazabilidad, RV-03)
+
+    SeccionesFeedback:
+      type: object
+      description: Estructura de Hattie & Timperley (RF-02). Sin campo de nota (RF-17).
+      required: [haciaDondeVoy, comoVoy, queSigue]
+      properties:
+        haciaDondeVoy: { type: string, description: Meta de aprendizaje de la tarea }
+        comoVoy: { type: string, description: Estado actual del código frente a la meta }
+        queSigue:
+          type: string
+          minLength: 1
+          description: Obligatorio y prioritario (RF-03)
+        pistas:
+          type: array
+          description: Orientadas al razonamiento; no deben contener la solución (RF-08, RF-09)
+          items: { type: string }
+
+    OrigenFeedback:
+      type: string
+      enum: [ia, ia_editada, docente]
+      description: RF-19. Se recalcula en el backend, el frontend no lo envía.
+
+    Retroalimentacion:
+      type: object
+      description: Vista del docente (incluye el borrador).
+      required: [entregaId, estado, origen, secciones]
+      properties:
+        entregaId: { type: string, format: uuid }
+        estado: { type: string, enum: [pendiente_revision, enviada] }
+        origen: { $ref: '#/components/schemas/OrigenFeedback' }
+        secciones: { $ref: '#/components/schemas/SeccionesFeedback' }
+        comentarioDocente:
+          type: [string, 'null']
+          description: Texto libre del docente (en el mockup "Nota del docente"; ver decisiones abiertas)
+        generadoEn: { type: string, format: date-time }
+        actualizadoEn: { type: string, format: date-time }
+
+    RetroalimentacionEditar:
+      type: object
+      minProperties: 1
+      properties:
+        secciones: { $ref: '#/components/schemas/SeccionesFeedback' }
+        comentarioDocente: { type: [string, 'null'], maxLength: 4000 }
+
+    AvisoIA:
+      type: object
+      description: RF-18. Siempre presente en la retroalimentación publicada.
+      required: [participoIA, texto]
+      properties:
+        participoIA: { type: boolean }
+        texto:
+          type: string
+          examples: ['EduTrace generó un borrador con IA; tu profesor lo revisó y aprobó.']
+
+    RetroalimentacionPublicada:
+      type: object
+      description: Vista del estudiante. Solo existe si la entrega está `enviada`.
+      required: [secciones, aviso, revisadoPor, fechaEnvio, leida]
+      properties:
+        secciones: { $ref: '#/components/schemas/SeccionesFeedback' }
+        comentarioDocente: { type: [string, 'null'] }
+        origen: { $ref: '#/components/schemas/OrigenFeedback' }
+        aviso: { $ref: '#/components/schemas/AvisoIA' }
+        revisadoPor: { $ref: '#/components/schemas/UsuarioResumen' }
+        fechaEnvio: { type: string, format: date-time }
+        leida: { type: boolean }
+
+    EntregaDocente:
+      allOf:
+        - $ref: '#/components/schemas/EntregaResumen'
+        - type: object
+          properties:
+            archivos:
+              type: array
+              items: { $ref: '#/components/schemas/ArchivoCodigo' }
+            analisis:
+              oneOf:
+                - $ref: '#/components/schemas/ResultadoAnalisis'
+                - type: 'null'
+            retroalimentacion:
+              oneOf:
+                - $ref: '#/components/schemas/Retroalimentacion'
+                - type: 'null'
+            dificultadPercibida: { type: [integer, 'null'] }
+            errorAnalisis:
+              type: [string, 'null']
+              description: Mensaje si estado = error_analisis
+
+    EntregaEstudiante:
+      allOf:
+        - $ref: '#/components/schemas/EntregaResumen'
+        - type: object
+          description: |
+            Nunca incluye el borrador ni el análisis interno. Mientras no esté `enviada`,
+            el frontend muestra "Tu intento está en revisión".
+          properties:
+            retroalimentacion:
+              oneOf:
+                - $ref: '#/components/schemas/RetroalimentacionPublicada'
+                - type: 'null'
+            pruebas:
+              type: [object, 'null']
+              description: Solo resultados de casos visibles, y solo tras el envío
+              properties:
+                total: { type: integer }
+                aprobadas: { type: integer }
+
+    Calificacion:
+      type: object
+      required: [nota]
+      properties:
+        nota: { type: number, minimum: 0, maximum: 5, multipleOf: 0.1, examples: [3.5] }
+        registradaPor: { $ref: '#/components/schemas/UsuarioResumen' }
+        fecha: { type: string, format: date-time, readOnly: true }
+
+    EventoAuditoria:
+      type: object
+      required: [id, autor, accion, fecha]
+      properties:
+        id: { type: string, format: uuid }
+        autor: { $ref: '#/components/schemas/UsuarioResumen' }
+        accion:
+          type: string
+          enum: [generar, editar, descartar, aprobar, reanalizar, calificar, responder_duda]
+        fecha: { type: string, format: date-time }
+        detalle: { type: object, additionalProperties: true, description: 'Diff o metadatos de la acción' }
+
+    Intento:
+      type: object
+      required: [entregaId, etiqueta, fecha, estado]
+      properties:
+        entregaId: { type: string, format: uuid }
+        etiqueta: { type: string, examples: [Intento 2, Revisión] }
+        tipo: { $ref: '#/components/schemas/TipoEntrega' }
+        fecha: { type: string, format: date-time }
+        titulo: { type: [string, 'null'], description: '= analisis.resumenCambios, solo si ya fue enviada' }
+        nota:
+          type: [string, 'null']
+          description: Resumen corto del hallazgo principal (texto, NO calificación)
+        estado:
+          type: string
+          enum: [en_revision, retroalimentado, sin_nota]
+
+    # ─── estudiante ───
+    TareaEstudiante:
+      type: object
+      required: [tareaId, titulo, estado, fechaLimite]
+      properties:
+        tareaId: { type: string, format: uuid }
+        titulo: { type: string }
+        fechaLimite: { type: string, format: date-time }
+        estado:
+          type: string
+          enum: [pendiente, en_revision, retroalimentada, aprobada, vencida]
+        intentosUsados: { type: integer }
+        maxIntentos: { type: integer }
+        ultimaEntregaId: { type: [string, 'null'], format: uuid }
+        ultimaEntregaFecha: { type: [string, 'null'], format: date-time }
+
+    ProgresoEstudiante:
+      type: object
+      required: [entregasAlDia, retroalimentacionesLeidas, erroresCorregidos, intentosPromedio, temas]
+      properties:
+        entregasAlDia:
+          type: object
+          properties:
+            hechas: { type: integer, examples: [7] }
+            total: { type: integer, examples: [9] }
+        retroalimentacionesLeidas:
+          type: object
+          properties:
+            leidas: { type: integer, examples: [6] }
+            total: { type: integer, examples: [7] }
+        erroresCorregidos:
+          type: integer
+          description: Líneas marcadas en el intento N que ya no aparecen en el N+1
+          examples: [5]
+        intentosPromedio: { type: number, examples: [1.8] }
+        temas:
+          type: array
+          description: '"Dónde me cuesta más"'
+          items:
+            type: object
+            required: [temaId, titulo, tropiezos]
+            properties:
+              temaId: { type: string }
+              titulo: { type: string, examples: [Arreglos y ciclos] }
+              tropiezos:
+                type: integer
+                description: 'Definición propuesta: entregas oficiales del tema con al menos una línea marcada como error'
+              nivel: { type: string, enum: [alto, medio, bajo] }
+
+    # ─── dudas ───
+    Duda:
+      type: object
+      required: [id, entregaId, pregunta, estado, fecha]
+      properties:
+        id: { type: string, format: uuid }
+        entregaId: { type: string, format: uuid }
+        pregunta: { type: string }
+        estado: { type: string, enum: [pendiente_revision, respondida] }
+        borradorRespuesta:
+          type: [string, 'null']
+          description: Solo visible para el docente
+        respuesta: { type: [string, 'null'] }
+        origen: { $ref: '#/components/schemas/OrigenFeedback' }
+        fecha: { type: string, format: date-time }
+
+    # ─── reportes ───
+    PuntoTrayectoria:
+      type: object
+      required: [estudianteId, nombre, nota, dificultad, intentos, estancado, alertaRevision]
+      properties:
+        estudianteId: { type: string, format: uuid }
+        nombre: { type: string }
+        nota: { type: number, minimum: 1, maximum: 5, description: Promedio de calificaciones del docente en el ítem y corte }
+        dificultad: { type: number, minimum: 0, maximum: 1, description: dificultadPercibida normalizada }
+        anterior:
+          type: [object, 'null']
+          description: Posición en el corte anterior (null en corte I)
+          properties:
+            nota: { type: number }
+            dificultad: { type: number }
+        estancado: { type: boolean }
+        intentos: { type: integer }
+        intentosASuficiencia: { type: [integer, 'null'], description: Intentos hasta nota ≥ 3.0; null si no la alcanza }
+        alertaRevision:
+          type: boolean
+          description: |
+            Salto brusco de desempeño sin intentos intermedios. Es una señal para revisar,
+            NO una acusación de copia o uso de IA (ver decisiones abiertas).
+
+    FriccionItem:
+      type: object
+      required: [itemId, etiqueta, pctMasDeDosIntentos]
+      properties:
+        itemId: { type: string }
+        etiqueta: { type: string }
+        pctMasDeDosIntentos: { type: integer, minimum: 0, maximum: 100 }
+
+    ReporteTrayectoria:
+      type: object
+      required: [dimension, itemId, corte, puntos, friccionComparada, umbrales]
+      properties:
+        dimension: { type: string, enum: [rae, tema] }
+        itemId: { type: string }
+        corte: { $ref: '#/components/schemas/Corte' }
+        puntos:
+          type: array
+          items: { $ref: '#/components/schemas/PuntoTrayectoria' }
+        friccionComparada:
+          type: array
+          items: { $ref: '#/components/schemas/FriccionItem' }
+        umbrales:
+          type: object
+          description: Fuente única de los cortes que usa el frontend
+          properties:
+            notaAprobacion: { type: number, default: 3.0 }
+            notaAlta: { type: number, default: 3.75 }
+            dificultadAlta: { type: number, default: 0.66 }
+            friccionMedia: { type: integer, default: 20 }
+            friccionAlta: { type: integer, default: 40 }
+
+    ErrorFrecuente:
+      type: object
+      required: [categoria, descripcion, ocurrencias, estudiantesAfectados]
+      properties:
+        categoria: { type: string, examples: [indice_fuera_de_rango] }
+        descripcion: { type: string, examples: [Condición de ciclo que accede fuera del arreglo] }
+        ocurrencias: { type: integer }
+        estudiantesAfectados: { type: integer }
+        temaId: { type: [string, 'null'] }
+
+    # ─── notificaciones ───
+    Notificacion:
+      type: object
+      required: [id, tipo, mensaje, fecha, leida]
+      properties:
+        id: { type: string, format: uuid }
+        tipo:
+          type: string
+          enum: [retroalimentacion_disponible, entrega_por_revisar, duda_nueva, fallo_analisis]
+        mensaje: { type: string }
+        enlace:
+          type: object
+          properties:
+            recurso: { type: string, enum: [entrega, duda, tarea] }
+            id: { type: string, format: uuid }
+        fecha: { type: string, format: date-time }
+        leida: { type: boolean }

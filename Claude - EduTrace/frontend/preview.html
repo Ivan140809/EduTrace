@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EduTrace — preview</title>
+<link rel="icon" href="./logo-edutrace.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@100;300;400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="src/styles.css">
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
+<script src="preview-mock.js"></script>
+</head>
+<body>
+<!--
+  PREVIEW: ejecuta los archivos reales de src/ en el navegador (se leen al cargar la página,
+  así que cualquier cambio en src/ se ve al recargar). El backend lo simula preview-mock.js.
+  Cuentas: pperez@javeriana.edu.co (docente), jperezg@ / alopez@javeriana.edu.co (estudiantes); cualquier contraseña.
+  Para el proyecto real: npm install && npm run dev
+-->
+<div id="root"></div>
+<script>
+(async function () {
+  const fuentes = {};
+  const externos = { react: window.React, 'react-dom/client': window.ReactDOM, 'react-dom': window.ReactDOM };
+
+  function resolver(desde, spec) {
+    const base = desde.split('/').slice(0, -1);
+    for (const parte of spec.split('/')) {
+      if (parte === '..') base.pop();
+      else if (parte !== '.') base.push(parte);
+    }
+    return base.join('/');
+  }
+
+  async function cargar(ruta) {
+    if (fuentes[ruta] !== undefined) return;
+    fuentes[ruta] = null;
+    let texto = null, real = ruta;
+    for (const ext of ['', '.tsx', '.ts']) {
+      if (ext === '' && !/\.(tsx?|js)$/.test(ruta)) continue;
+      const r = await fetch(ruta + ext, { cache: 'no-store' });
+      if (r.ok) { texto = await r.text(); real = ruta + ext; break; }
+    }
+    if (texto === null) throw new Error('No se encontró ' + ruta);
+    texto = texto.replace(/import\.meta\.env/g, '({})');
+    const codigo = Babel.transform(texto, {
+      filename: real,
+      presets: [['typescript', { isTSX: real.endsWith('.tsx'), allExtensions: true }], ['react', { runtime: 'classic' }]],
+      plugins: ['transform-modules-commonjs'],
+    }).code;
+    fuentes[ruta] = { codigo, deps: [] };
+    const specs = [...codigo.matchAll(/require\("([^"]+)"\)/g)].map((m) => m[1]);
+    await Promise.all(specs.filter((s) => s.startsWith('.') && !s.endsWith('.css')).map((s) => cargar(resolver(ruta, s))));
+  }
+
+  const modulos = {};
+  function requerir(desde, spec) {
+    if (externos[spec]) return externos[spec];
+    if (spec.endsWith('.css')) return {};
+    const ruta = resolver(desde, spec);
+    if (modulos[ruta]) return modulos[ruta].exports;
+    const mod = (modulos[ruta] = { exports: {} });
+    new Function('require', 'module', 'exports', 'React', fuentes[ruta].codigo)(
+      (s) => requerir(ruta, s), mod, mod.exports, window.React);
+    return mod.exports;
+  }
+
+  try {
+    await cargar('src/main.tsx');
+    requerir('', './src/main.tsx');
+  } catch (e) {
+    document.getElementById('root').innerHTML = '<pre style="padding:24px;color:#E63946;white-space:pre-wrap">' + e.message + '</pre>';
+    console.error(e);
+  }
+})();
+</script>
+</body>
+</html>
